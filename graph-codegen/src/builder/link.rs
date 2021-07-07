@@ -1,8 +1,26 @@
+use from_as::*;
 use graph_core::resource::ResourceIdentity;
 use inflector::Inflector;
-use std::str::FromStr;
+use std::{
+    convert::TryFrom,
+    io::{Read, Write},
+    str::FromStr,
+};
 
-#[derive(Debug, Default, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Eq,
+    PartialEq,
+    Hash,
+    Ord,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    FromFile,
+    AsFile,
+)]
 pub struct ClientLinkSettings {
     name: String,
     method_name: Option<String>,

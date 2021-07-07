@@ -16,7 +16,7 @@ lazy_static! {
     static ref PATH_ID_REG: Regex = Regex::new(r"(\(\{)(\w+)(}\))").unwrap();
 
     /// Matches named ids such as {group-id}.
-    static ref PATH_ID_NAMED_REG: Regex = Regex::new(r"(\{)(\w+-\w+)(})").unwrap();
+    pub static ref PATH_ID_NAMED_REG: Regex = Regex::new(r"(\{)(\w+-\w+)(})").unwrap();
 
     pub static ref INTERNAL_PATH_ID: Regex = Regex::new(r"(\{\{)(\w+)(}})").unwrap();
 
@@ -26,7 +26,7 @@ lazy_static! {
 }
 
 pub trait RequestParserBuilder<RHS: ?Sized = Self> {
-    fn build(&self, path: &str, modifier: &Modifier, http_method: HttpMethod) -> Request;
+    fn build(&self, path: String, modifier: &Modifier, http_method: HttpMethod) -> Request;
 }
 
 pub trait RequestParser<RHS = Self> {
@@ -150,7 +150,8 @@ impl RequestParser for &str {
             count += 1;
         }
 
-        // Replaces key-value pairs such as getActivitiesByInterval(interval=\'{interval}\')
+        // Replaces key-value pairs such as
+        // getActivitiesByInterval(interval=\'{interval}\')
         for cap in KEY_VALUE_PAIR_RAW_QUOTED.captures_iter(path_clone.as_str()) {
             let s = cap[0].to_string();
             if let Some(i) = s.find('=') {

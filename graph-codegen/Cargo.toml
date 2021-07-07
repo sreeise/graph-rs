@@ -20,6 +20,9 @@ serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 serde_yaml = "0.8"
 strum = { version = "0.21", features = ["derive"] }
+either = { version = "1.6.1", features = ["serde"] }
+handlebars = "2.0.2"
 
 graph-http = { path = "../graph-http" }
 graph-core = { path = "../graph-core" }
+graph-error = { path = "../graph-error" }

@@ -1,11 +1,10 @@
-use crate::builder::Builder;
-use crate::parser::client_resource::ClientResource;
+use crate::{builder::Builder, parser::client_resource::ClientResource};
 
 pub trait Parse<ParseFrom> {
     type Error: std::error::Error;
 
-    fn parse<'a>(
+    fn parse(
         parse_from: ParseFrom,
-        client_resource: ClientResource<'_>,
-    ) -> Result<Builder<'a>, Self::Error>;
+        client_resource: ClientResource,
+    ) -> Result<Builder, Self::Error>;
 }

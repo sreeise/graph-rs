@@ -39,14 +39,13 @@
 //! ```
 //!
 //! #### The send method and Graph types
-//! The send() method is the main method for sending a request. The return value will be wrapped
+//! The send() method is the main method for sending a request. If there are no errors the return value will be wrapped
 //! in a response object and the body will be one of:
 //!
-//! 1. serde_json::Value
+//! 1. [`serde_json::Value`]
 //!
-//! 2. Collection<serde_json::Value>
-//!
-//! 3. Content (204 responses that return a content field)
+//! 2. NoContent (204 responses that return a content field) This is always represented as a [`serde_json::Value::String`]
+//!     and sometimes includes some basic info depending on the request.
 //!
 //! # Basic Use:
 //! ```rust,ignore

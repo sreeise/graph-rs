@@ -1,5 +1,4 @@
-use crate::builder::ClientLinkSettings;
-use crate::traits::VecExt;
+use crate::{builder::ClientLinkSettings, traits::VecExt};
 use graph_core::resource::ResourceIdentity;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -9,6 +8,12 @@ pub fn get_client_link_settings(
     let mut map: BTreeMap<String, Vec<ClientLinkSettings>> = BTreeMap::new();
 
     match resource_identity {
+        ResourceIdentity::Application | ResourceIdentity::Applications => {
+            map.insert(
+                "application".into(),
+                vec![ClientLinkSettings::new("applications").as_id_method_link()].mem_take(),
+            );
+        }
         ResourceIdentity::Buckets => {
             map.insert(
                 "buckets".into(),

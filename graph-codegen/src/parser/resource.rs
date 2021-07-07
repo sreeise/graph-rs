@@ -1,9 +1,11 @@
 use crate::parser::{PathMap, RequestSet};
 use from_as::*;
 use inflector::Inflector;
-use std::collections::{BTreeSet, HashMap, VecDeque};
-use std::convert::TryFrom;
-use std::io::{Read, Write};
+use std::{
+    collections::{BTreeSet, HashMap, VecDeque},
+    convert::TryFrom,
+    io::{Read, Write},
+};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, FromFile, AsFile)]
 pub struct ResourceNames {

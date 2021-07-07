@@ -1,14 +1,15 @@
-use crate::builder::Builder;
-use crate::parser::client_resource::ClientResource;
-use crate::parser::error::ParseError;
-use crate::parser::{Modifier, Parser, ParserSettings, ParserSpec, PathMap, ResourceRequestMap};
-use crate::traits::Parse;
+use crate::{
+    builder::{Builder, StoredClientSet},
+    parser::{
+        client_resource::ClientResource, error::ParseError, Modifier, Parser, ParserSettings,
+        ParserSpec, PathMap, ResourceRequestMap,
+    },
+    traits::Parse,
+};
 use from_as::FromFile;
 use graph_core::resource::ResourceIdentity;
 use rayon::prelude::*;
-use std::cell::RefCell;
-use std::convert::TryFrom;
-use std::str::FromStr;
+use std::{cell::RefCell, convert::TryFrom, str::FromStr};
 
 static API_V1_METADATA_URL_STR: &str = "https://raw.githubusercontent.com/microsoftgraph/msgraph-metadata/master/openapi/v1.0/openapi.yaml";
 
@@ -78,25 +79,23 @@ pub trait Generate<Clients> {
 /// pretty!(map);
 /// ```
 #[derive(Default, Debug)]
-pub struct Generator<'a> {
-    builder: Builder<'a>,
+pub struct Generator {
+    builder: Builder,
 }
 
-impl<'a> Generator<'a> {
-    pub fn new(resource_identity: ResourceIdentity) -> Result<Generator<'a>, ParseError> {
+impl Generator {
+    pub fn new(resource_identity: ResourceIdentity) -> Result<Generator, ParseError> {
         let client_resource = ClientResource::try_from(resource_identity)?;
         Ok(Generator {
             builder: Generator::parse(API_V1_METADATA_URL.clone(), client_resource)?,
         })
     }
 
-    pub fn get_client_resource<'b>(
-        resource_identity: ResourceIdentity,
-    ) -> Option<ClientResource<'b>> {
+    pub fn get_client_resource(resource_identity: ResourceIdentity) -> Option<ClientResource> {
         ClientResource::try_from(resource_identity).ok()
     }
 
-    pub fn generate_requests(&self) -> Vec<ResourceRequestMap<'a>> {
+    pub fn generate_requests(&self) -> Vec<ResourceRequestMap> {
         self.builder.generate_requests()
     }
 
@@ -104,18 +103,26 @@ impl<'a> Generator<'a> {
         self.builder.build_clients();
     }
 
-    pub fn get_parser() -> Result<Parser<'a>, ParseError> {
+    pub fn get_parser() -> Result<Parser, ParseError> {
         Ok(Parser::try_from(API_V1_METADATA_URL.clone())?)
     }
+
+    pub fn build_stored_clients(&self) -> StoredClientSet {
+        self.builder.build_stored_clients()
+    }
+
+    pub fn write_stored_clients(stored_client_set: StoredClientSet) {
+        Builder::write_stored_clients(stored_client_set);
+    }
 }
 
-impl Parse<&std::path::Path> for Generator<'_> {
+impl Parse<&std::path::Path> for Generator {
     type Error = ParseError;
 
-    fn parse<'a>(
+    fn parse(
         parse_from: &std::path::Path,
-        client_resource: ClientResource<'_>,
-    ) -> Result<Builder<'a>, Self::Error> {
+        client_resource: ClientResource,
+    ) -> Result<Builder, Self::Error> {
         match client_resource {
             ClientResource::Main { modifier } => {
                 let mut path_map: PathMap = PathMap::from_file(parse_from)?;
@@ -200,13 +207,13 @@ impl Parse<&std::path::Path> for Generator<'_> {
     }
 }
 
-impl Parse<reqwest::Url> for Generator<'_> {
+impl Parse<reqwest::Url> for Generator {
     type Error = ParseError;
 
-    fn parse<'a>(
+    fn parse(
         parse_from: reqwest::Url,
-        client_resource: ClientResource<'_>,
-    ) -> Result<Builder<'a>, Self::Error> {
+        client_resource: ClientResource,
+    ) -> Result<Builder, Self::Error> {
         match client_resource {
             ClientResource::Main { modifier } => {
                 let parser = Parser::try_from(parse_from)?;
@@ -284,7 +291,7 @@ impl Parse<reqwest::Url> for Generator<'_> {
     }
 }
 
-impl<'a> Generate<ResourceIdentity> for Generator<'a> {
+impl Generate<ResourceIdentity> for Generator {
     fn generate(resource_identity: ResourceIdentity) -> Result<(), ParseError> {
         let client_resource = ClientResource::try_from(resource_identity)?;
         let gen = Generator {
@@ -306,7 +313,7 @@ impl<'a> Generate<ResourceIdentity> for Generator<'a> {
     }
 }
 
-impl<'a> Generate<Vec<ResourceIdentity>> for Generator<'a> {
+impl Generate<Vec<ResourceIdentity>> for Generator {
     fn generate(vec: Vec<ResourceIdentity>) -> Result<(), ParseError> {
         vec.par_iter().for_each(|resource_identity| {
             Generator::generate(*resource_identity).unwrap();

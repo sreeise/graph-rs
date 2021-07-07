@@ -1,12 +1,18 @@
-use crate::parser::{Modifier, ResourceNameMapping, ResourceNames};
-use crate::traits::{HashMapExt, RequestParser};
+use crate::{
+    parser::{Modifier, ResourceNameMapping, ResourceNames},
+    traits::{HashMapExt, RequestParser},
+};
 use from_as::*;
 use inflector::Inflector;
-use std::collections::hash_set::{Difference, Iter};
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
-use std::convert::TryFrom;
-use std::hash::{Hash, Hasher};
-use std::io::{Read, Write};
+use std::{
+    collections::{
+        hash_set::{Difference, Iter},
+        BTreeMap, BTreeSet, HashMap, HashSet, VecDeque,
+    },
+    convert::TryFrom,
+    hash::{Hash, Hasher},
+    io::{Read, Write},
+};
 
 #[derive(
     Debug,
@@ -329,7 +335,7 @@ impl RequestSet {
         if self.set.contains(&request_map) {
             let mut req_map = self.set.get(&request_map).cloned().unwrap();
             for request in request_map.requests.iter() {
-                if req_map.requests.iter().find(|r| r.eq(&request)).is_none() {
+                if !req_map.requests.iter().any(|r| r.eq(&request)) {
                     req_map.requests.push_back(request.clone());
                 }
             }
@@ -596,13 +602,13 @@ impl From<HashMap<String, RequestSet>> for ApiImpl {
 }
 
 #[derive(Default, Debug, Clone)]
-pub struct ResourceRequestMap<'a> {
-    pub modifier: Modifier<'a>,
+pub struct ResourceRequestMap {
+    pub modifier: Modifier,
     pub request_set: RequestSet,
 }
 
-impl<'a> ResourceRequestMap<'a> {
-    pub fn new(modifier: Modifier<'a>, request_set: RequestSet) -> ResourceRequestMap<'a> {
+impl ResourceRequestMap {
+    pub fn new(modifier: Modifier, request_set: RequestSet) -> ResourceRequestMap {
         ResourceRequestMap {
             modifier,
             request_set,

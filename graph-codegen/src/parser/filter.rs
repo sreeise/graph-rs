@@ -1,29 +1,33 @@
-use crate::parser::{Request, RequestMap, RequestSet};
-use crate::traits::{Modify, INTERNAL_PATH_ID};
+use crate::{
+    parser::{Request, RequestMap, RequestSet},
+    traits::{Modify, INTERNAL_PATH_ID},
+};
 use from_as::*;
 use graph_core::resource::ResourceIdentity;
-use std::collections::{HashMap, VecDeque};
-use std::convert::TryFrom;
-use std::io::{Read, Write};
+use std::{
+    collections::{HashMap, VecDeque},
+    convert::TryFrom,
+    io::{Read, Write},
+};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, FromFile, AsFile)]
-pub enum FilterIgnore<'a> {
-    PathContains(&'a str),
-    PathContainsMulti(Vec<&'a str>),
-    PathStartsWith(&'a str),
-    PathEquals(&'a str),
+pub enum FilterIgnore {
+    PathContains(String),
+    PathContainsMulti(Vec<String>),
+    PathStartsWith(String),
+    PathEquals(String),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, FromFile, AsFile)]
-pub enum Filter<'a> {
+pub enum Filter {
     None,
-    PathStartsWith(&'a str),
-    PathStartsWithMulti(Vec<&'a str>),
-    PathEquals(&'a str),
-    PathContains(&'a str),
-    Regex(&'a str),
-    IgnoreIf(FilterIgnore<'a>),
-    MultiFilter(Vec<Filter<'a>>),
+    PathStartsWith(String),
+    PathStartsWithMulti(Vec<String>),
+    PathEquals(String),
+    PathContains(String),
+    Regex(String),
+    IgnoreIf(FilterIgnore),
+    MultiFilter(Vec<Filter>),
 }
 
 /// Modifies the paths that start with a resource and id by replacing
@@ -66,14 +70,15 @@ impl ResourceUrlReplacement for ResourceIdentityModifier {
     }
 
     fn replacement(&self) -> String {
-        let mut name = self.name();
+        let name = self.name();
 
         if name.ends_with('s') {
             let replacement = &name[..name.len() - 1];
             replacement.into()
         } else {
-            name.push('s');
-            name
+            let mut replacement = name;
+            replacement.push('s');
+            replacement
         }
     }
 
@@ -330,7 +335,7 @@ impl MatchTarget {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct ModifierMap {
     pub map: HashMap<MatchTarget, Vec<MatchTarget>>,
 }

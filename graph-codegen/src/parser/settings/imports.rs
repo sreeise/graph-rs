@@ -2,12 +2,8 @@ use graph_core::resource::ResourceIdentity;
 
 pub fn get_imports(resource_identity: ResourceIdentity) -> Vec<&'static str> {
     match resource_identity {
-        ResourceIdentity::Applications => vec![
-            "crate::core::ResourceIdentity",
-        ],
-        ResourceIdentity::Attachments => vec![
-            "crate::core::ResourceIdentity",
-        ],
+        ResourceIdentity::Applications => vec!["crate::core::ResourceIdentity"],
+        ResourceIdentity::Attachments => vec!["crate::core::ResourceIdentity"],
         ResourceIdentity::Buckets => vec![
             "crate::tasks::{TaskRequest, TasksRequest}",
             "crate::core::ResourceIdentity",
@@ -30,9 +26,7 @@ pub fn get_imports(resource_identity: ResourceIdentity) -> Vec<&'static str> {
             "crate::extended_properties::ExtendedPropertiesRequest",
             "crate::attachments::{AttachmentRequest, AttachmentsRequest}",
         ],
-        ResourceIdentity::Calls => vec![
-            "crate::core::ResourceIdentity",
-        ],
+        ResourceIdentity::Calls => vec!["crate::core::ResourceIdentity"],
         ResourceIdentity::CallRecords => vec![
             "crate::core::ResourceIdentity",
             "crate::sessions::{SessionRequest, SessionsRequest}",
@@ -50,7 +44,7 @@ pub fn get_imports(resource_identity: ResourceIdentity) -> Vec<&'static str> {
             "crate::core::ResourceIdentity",
             "crate::child_folders::{ChildFolderRequest, ChildFoldersRequest}",
             "crate::contacts::{ContactRequest, ContactsRequest}",
-            "crate::extended_properties::ExtendedPropertiesRequest"
+            "crate::extended_properties::ExtendedPropertiesRequest",
         ],
         ResourceIdentity::Conversations => vec![
             "crate::core::ResourceIdentity",
@@ -97,7 +91,8 @@ pub fn get_imports(resource_identity: ResourceIdentity) -> Vec<&'static str> {
             "crate::core::ResourceIdentity",
             "crate::parent_notebook::ParentNotebookRequest",
             "crate::parent_section::ParentSectionRequest",
-            "graph_http::{BlockingDownload, AsyncDownload, BlockingHttpClient, AsyncHttpClient, RequestClient}",
+            "graph_http::{BlockingDownload, AsyncDownload, BlockingHttpClient, AsyncHttpClient, \
+             RequestClient}",
             "std::path::Path",
         ],
         ResourceIdentity::Planner => vec![
@@ -216,9 +211,7 @@ pub fn get_imports(resource_identity: ResourceIdentity) -> Vec<&'static str> {
             "crate::planner::PlannerRequest",
             "crate::core::ResourceIdentity",
         ],
-        ResourceIdentity::Tasks => vec![
-            "crate::core::ResourceIdentity",
-        ],
+        ResourceIdentity::Tasks => vec!["crate::core::ResourceIdentity"],
         ResourceIdentity::Threads => vec![
             "crate::core::ResourceIdentity",
             "crate::posts::{PostRequest, PostsRequest}",

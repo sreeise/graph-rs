@@ -20,6 +20,7 @@ use std::convert::AsRef;
 pub enum ResourceIdentity {
     Activities,
     AppCatalogs,
+    Application,
     Applications,
     Attachments,
     AuditLogs,

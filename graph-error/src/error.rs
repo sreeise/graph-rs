@@ -17,12 +17,22 @@ pub struct InnerError {
     pub date: Option<String>,
 }
 
+/// An error resource included in the error response returned from
+/// Microsoft Graph.
+///
+/// [odata.error resource type](https://docs.microsoft.com/en-us/graph/errors#odataerror-resource-type)
 #[derive(Default, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ErrorStatus {
+    /// An error code string for the error that occurred
+    /// [Code Property](https://docs.microsoft.com/en-us/graph/errors#code-property)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub code: Option<String>,
+
+    /// A developer ready message about the error that occurred. This should not be displayed to the user directly.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+
+    /// Optional. Additional error objects that may be more specific than the top level error.
     #[serde(rename = "innerError")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub inner_error: Option<InnerError>,
@@ -151,6 +161,7 @@ impl Default for GraphError {
     }
 }
 
+/// [Microsoft Graph API specific errors and HTTP status codes](https://docs.microsoft.com/en-us/graph/errors)
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum ErrorType {
     BadRequest,
@@ -167,10 +178,12 @@ pub enum ErrorType {
     UnsupportedMediaType,
     RequestRangeNotSatisfiable,
     UnprocessableEntity,
+    Locked,
     TooManyRequests,
     InternalServerError,
     NotImplemented,
     ServiceUnavailable,
+    GatewayTimeout,
     InsufficientStorage,
     BandwidthLimitExceeded,
     UnknownError,
@@ -195,10 +208,12 @@ impl ErrorType {
             ErrorType::UnsupportedMediaType => "The content type of the request is a format that is not supported by the service.",
             ErrorType::RequestRangeNotSatisfiable => "The specified byte range is invalid or unavailable.",
             ErrorType::UnprocessableEntity => "Cannot process the request because it is semantically incorrect.",
+            ErrorType::Locked => "The resource that is being accessed is locked.",
             ErrorType::TooManyRequests => "Client application has been throttled and should not attempt to repeat the request until an amount of time has elapsed.",
             ErrorType::InternalServerError => "There was an internal server error while processing the request.",
             ErrorType::NotImplemented => "The requested feature isn’t implemented.",
             ErrorType::ServiceUnavailable => "The service is temporarily unavailable. You may repeat the request after a delay. There may be a Retry-After header.",
+            ErrorType::GatewayTimeout => "The server, while acting as a proxy, did not receive a timely response from the upstream server it needed to access in attempting to complete the request. May occur together with 503.",
             ErrorType::InsufficientStorage => "The maximum storage quota has been reached.",
             ErrorType::BandwidthLimitExceeded => "Your app has been throttled for exceeding the maximum bandwidth cap. Your app can retry the request again after more time has elapsed.",
             ErrorType::UnknownError => "Unknown error or failure",
@@ -221,10 +236,12 @@ impl ErrorType {
             415 => Some(ErrorType::UnsupportedMediaType),
             416 => Some(ErrorType::RequestRangeNotSatisfiable),
             422 => Some(ErrorType::UnprocessableEntity),
+            423 => Some(ErrorType::Locked),
             429 => Some(ErrorType::TooManyRequests),
             500 => Some(ErrorType::InternalServerError),
             501 => Some(ErrorType::NotImplemented),
             503 => Some(ErrorType::ServiceUnavailable),
+            504 => Some(ErrorType::GatewayTimeout),
             507 => Some(ErrorType::InsufficientStorage),
             509 => Some(ErrorType::BandwidthLimitExceeded),
             _ => None,

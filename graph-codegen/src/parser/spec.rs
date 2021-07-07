@@ -1,23 +1,28 @@
-use crate::builder::ClientLinkSettings;
-use crate::parser::filter::{
-    Filter, ModifierMap, ResourceIdentityModifier, ResourceUrlReplacement, SecondaryModifierMap,
+use crate::{
+    builder::ClientLinkSettings,
+    parser::{
+        filter::{
+            Filter, ModifierMap, ResourceIdentityModifier, ResourceUrlReplacement,
+            SecondaryModifierMap,
+        },
+        DirectoryModFile, ParserSettings, PathMap, RequestMap, RequestSet, ResourceRequestMap,
+    },
+    traits::Modify,
 };
-use crate::parser::{
-    DirectoryModFile, ParserSettings, PathMap, RequestMap, RequestSet, ResourceRequestMap,
-};
-use crate::traits::Modify;
 use from_as::*;
 use graph_core::resource::ResourceIdentity;
 use reqwest::Url;
-use std::cell::{RefCell, RefMut};
-use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
-use std::convert::TryFrom;
-use std::fmt::Debug;
-use std::path::Path;
-use std::str::FromStr;
+use std::{
+    cell::{RefCell, RefMut},
+    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
+    convert::TryFrom,
+    fmt::Debug,
+    path::Path,
+    str::FromStr,
+};
 
-#[derive(Default, Debug, Clone)]
-pub struct Modifier<'a> {
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+pub struct Modifier {
     pub(crate) name: String,
     pub(crate) resource_identity: ResourceIdentity,
     pub(crate) modifier_map: ModifierMap,
@@ -25,19 +30,19 @@ pub struct Modifier<'a> {
     pub(crate) client_links: BTreeMap<String, BTreeSet<ClientLinkSettings>>,
     pub(crate) secondary_modify_target: SecondaryModifierMap,
     pub(crate) custom_methods: Option<HashMap<String, RequestSet>>,
-    pub(crate) filters: Vec<Filter<'a>>,
+    pub(crate) filters: Vec<Filter>,
     pub(crate) imports: BTreeSet<String>,
     pub(crate) links_override: HashMap<String, Vec<String>>,
     pub(crate) directory_mod: Option<DirectoryModFile>,
 }
 
-impl<'a> Modifier<'a> {
-    pub fn new(modifier_name: &str) -> Modifier<'a> {
+impl Modifier {
+    pub fn new(modifier_name: &str) -> Modifier {
         let resource_identity = ResourceIdentity::from_str(modifier_name).unwrap();
         Modifier::from(resource_identity)
     }
 
-    pub fn build_modifier_vec(names: &[&str]) -> Vec<Modifier<'a>> {
+    pub fn build_modifier_vec(names: &[&str]) -> Vec<Modifier> {
         let mut vec: Vec<Modifier> = Vec::new();
         for name in names.iter() {
             vec.push(Modifier::new(name));
@@ -47,7 +52,7 @@ impl<'a> Modifier<'a> {
 
     pub fn build_modifier_vec_resource_identity(
         resource_identity_vec: &[ResourceIdentity],
-    ) -> Vec<Modifier<'a>> {
+    ) -> Vec<Modifier> {
         let mut vec: Vec<Modifier> = Vec::new();
         for resource_identity in resource_identity_vec {
             vec.push(Modifier::from(*resource_identity));
@@ -56,7 +61,7 @@ impl<'a> Modifier<'a> {
     }
 }
 
-impl<'a> From<ResourceIdentity> for Modifier<'a> {
+impl From<ResourceIdentity> for Modifier {
     fn from(resource_identity: ResourceIdentity) -> Self {
         let modifier_name = &resource_identity.to_string();
         let shorthand = &modifier_name[..modifier_name.len() - 1];
@@ -89,10 +94,20 @@ impl<'a> From<ResourceIdentity> for Modifier<'a> {
             .modifier_map
             .operation_map(double_name.as_str(), modifier_name);
 
-        for (name, _set) in modifier.client_links.iter() {
-            let ri = ResourceIdentity::from_str(name.as_str()).unwrap();
-            if ParserSettings::is_registered_ident_client(ri) {
-                modifier.imports.insert("handlebars::*".into());
+        let handlebars_import = "handlebars::*";
+        if ParserSettings::is_registered_ident_client(resource_identity) {
+            modifier.imports.insert(handlebars_import.into());
+        }
+
+        if !modifier.imports.contains(handlebars_import) {
+            for (name, _set) in modifier.client_links.iter() {
+                // let ri = ResourceIdentity::from_str(name.as_str()).unwrap();
+
+                if let Ok(ri) = ResourceIdentity::from_str(name.as_str()) {
+                    if ParserSettings::is_registered_ident_client(ri) {
+                        modifier.imports.insert(handlebars_import.into());
+                    }
+                }
             }
         }
 
@@ -100,32 +115,32 @@ impl<'a> From<ResourceIdentity> for Modifier<'a> {
     }
 }
 
-impl<'a> From<&str> for Modifier<'a> {
+impl<'a> From<&str> for Modifier {
     fn from(value: &str) -> Self {
         Modifier::from(ResourceIdentity::from_str(value).unwrap())
     }
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct ParserSpec<'a> {
+pub struct ParserSpec {
     pub(crate) paths: PathMap,
-    pub(crate) modifiers: Vec<Modifier<'a>>,
+    pub(crate) modifiers: Vec<Modifier>,
 }
 
-impl<'a> ParserSpec<'a> {
-    pub(crate) fn parser_spec(path_map: PathMap, modifiers: Vec<Modifier<'a>>) -> ParserSpec<'a> {
+impl ParserSpec {
+    pub(crate) fn parser_spec(path_map: PathMap, modifiers: Vec<Modifier>) -> ParserSpec {
         ParserSpec {
             paths: path_map,
             modifiers,
         }
     }
 
-    pub fn new(mut path_map: PathMap, modifiers: Vec<Modifier<'a>>) -> ParserSpec<'a> {
+    pub fn new(mut path_map: PathMap, modifiers: Vec<Modifier>) -> ParserSpec {
         path_map.clean();
         ParserSpec::parser_spec(path_map, modifiers)
     }
 
-    pub fn parse<P: AsRef<Path>>(file: P) -> ParserSpec<'a> {
+    pub fn parse<P: AsRef<Path>>(file: P) -> ParserSpec {
         let mut path_map: PathMap = PathMap::from_file(file.as_ref()).unwrap();
         path_map.clean();
         ParserSpec::parser_spec(path_map, Default::default())
@@ -135,31 +150,31 @@ impl<'a> ParserSpec<'a> {
         file: P,
         start_filter: Filter,
         secondary_name: &str,
-    ) -> ParserSpec<'a> {
+    ) -> ParserSpec {
         let path_map: PathMap = PathMap::from_file(file.as_ref()).unwrap();
         let mut path_map: PathMap = path_map.filter(start_filter).into();
         let path_map = path_map.clean_secondary(secondary_name);
         ParserSpec::parser_spec(path_map, Default::default())
     }
 
-    pub fn set_modifiers(&mut self, modifiers: Vec<Modifier<'a>>) {
+    pub fn set_modifiers(&mut self, modifiers: Vec<Modifier>) {
         self.modifiers = modifiers;
     }
 }
 
 #[derive(Default, Debug, Clone)]
-pub struct Parser<'a> {
-    pub(crate) spec: RefCell<ParserSpec<'a>>,
+pub struct Parser {
+    pub(crate) spec: RefCell<ParserSpec>,
 }
 
-impl<'a> Parser<'a> {
-    pub fn parse<P: AsRef<Path>>(file: P) -> Parser<'a> {
+impl Parser {
+    pub fn parse<P: AsRef<Path>>(file: P) -> Parser {
         Parser {
             spec: RefCell::new(ParserSpec::parse(file)),
         }
     }
 
-    pub fn parse_filter<P: AsRef<str>>(file: P, filter: Filter<'_>) -> Parser<'a> {
+    pub fn parse_filter<P: AsRef<str>>(file: P, filter: Filter) -> Parser {
         let mut path_map: PathMap = PathMap::from_file(file.as_ref()).unwrap();
         path_map.clean();
 
@@ -179,22 +194,22 @@ impl<'a> Parser<'a> {
         self.spec.borrow_mut().paths = path_map;
     }
 
-    pub fn modifiers(&self) -> Vec<Modifier<'a>> {
+    pub fn modifiers(&self) -> Vec<Modifier> {
         self.spec.borrow().modifiers.clone()
     }
 
-    pub fn set_modifiers(&self, modifiers: Vec<Modifier<'a>>) {
+    pub fn set_modifiers(&self, modifiers: Vec<Modifier>) {
         self.spec.borrow_mut().set_modifiers(modifiers);
     }
 
-    pub fn filter(&self, filter: Filter<'_>) -> PathMap {
+    pub fn filter(&self, filter: Filter) -> PathMap {
         let spec = self.spec.borrow();
         PathMap {
             paths: spec.paths.filter(filter),
         }
     }
 
-    pub fn multi_filter(&self, filters: Vec<Filter<'_>>) -> PathMap {
+    pub fn multi_filter(&self, filters: Vec<Filter>) -> PathMap {
         let spec = self.spec.borrow();
         let mut path_map = spec.paths.clone();
 
@@ -205,7 +220,7 @@ impl<'a> Parser<'a> {
         path_map
     }
 
-    fn use_filters_internal(&self, mut spec: RefMut<ParserSpec>, filters: Vec<Filter<'_>>) {
+    fn use_filters_internal(&self, mut spec: RefMut<ParserSpec>, filters: Vec<Filter>) {
         let mut path_map = spec.paths.clone();
 
         for filter in filters.iter() {
@@ -217,12 +232,12 @@ impl<'a> Parser<'a> {
         spec.paths = path_map;
     }
 
-    pub fn use_filters(&self, filters: Vec<Filter<'_>>) {
+    pub fn use_filters(&self, filters: Vec<Filter>) {
         let spec = self.spec.borrow_mut();
         self.use_filters_internal(spec, filters);
     }
 
-    pub fn build(&self) -> Vec<ResourceRequestMap<'a>> {
+    pub fn build(&self) -> Vec<ResourceRequestMap> {
         let spec = self.spec.borrow();
         let modifiers = spec.modifiers.clone();
         let mut resource_requests: Vec<ResourceRequestMap> = Vec::new();
@@ -230,7 +245,7 @@ impl<'a> Parser<'a> {
         for modifier in modifiers {
             let mut path_map: PathMap = spec
                 .paths
-                .filter(Filter::PathStartsWith(&format!("/{}", modifier.name)))
+                .filter(Filter::PathStartsWith(format!("/{}", modifier.name)))
                 .into();
 
             path_map.transform_paths();
@@ -284,7 +299,7 @@ impl<'a> Parser<'a> {
     }
 }
 
-impl<'a> TryFrom<reqwest::Url> for Parser<'a> {
+impl<'a> TryFrom<reqwest::Url> for Parser {
     type Error = reqwest::Error;
 
     fn try_from(value: Url) -> Result<Self, Self::Error> {

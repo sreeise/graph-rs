@@ -1,44 +1,45 @@
-use crate::builder::{Client, ClientBuilder, ClientLinkSettings};
-use crate::parser::filter::Filter;
-use crate::parser::{
-    Modifier, Parser, ParserSettings, PathMap, RequestMap, RequestSet, ResourceNames,
-    ResourceRequestMap,
+use crate::{
+    builder::{Client, ClientBuilder, ClientLinkSettings, StoredClient, StoredClientSet},
+    parser::{
+        filter::Filter, Modifier, Parser, ParserSettings, PathMap, RequestMap, RequestSet,
+        ResourceNames, ResourceRequestMap,
+    },
 };
 use graph_core::resource::ResourceIdentity;
-use graph_http::iotools;
+use graph_http::iotools::create_dir;
 use inflector::Inflector;
-use std::cell::{Ref, RefCell};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::fs::OpenOptions;
-use std::io::Write;
-use std::str::FromStr;
+use std::{
+    cell::{Ref, RefCell},
+    collections::{BTreeMap, BTreeSet, HashMap},
+    fs::OpenOptions,
+    io::Write,
+    str::FromStr,
+};
 
 #[derive(Default, Debug, Clone)]
-pub struct SpecBuilder<'a> {
-    pub(crate) parser: Parser<'a>,
-    ident_client_id_links: BTreeMap<String, String>,
+pub struct SpecBuilder {
+    pub(crate) parser: Parser,
     secondary_links: BTreeMap<String, Vec<String>>,
     build_with_modifier_filter: bool,
     dry_run: bool,
 }
 
-impl<'a> SpecBuilder<'a> {
+impl SpecBuilder {
     fn set_dry_run(&mut self, dry_run: bool) {
         self.dry_run = dry_run;
     }
 }
 
 #[derive(Default, Debug, Clone)]
-pub struct Builder<'a> {
-    pub(crate) spec: RefCell<SpecBuilder<'a>>,
+pub struct Builder {
+    pub(crate) spec: RefCell<SpecBuilder>,
 }
 
-impl<'a> Builder<'a> {
-    pub fn new(parser: Parser<'a>) -> Builder<'a> {
+impl Builder {
+    pub fn new(parser: Parser) -> Builder {
         Builder {
             spec: RefCell::new(SpecBuilder {
                 parser,
-                ident_client_id_links: Default::default(),
                 secondary_links: Default::default(),
                 build_with_modifier_filter: false,
                 dry_run: false,
@@ -50,11 +51,11 @@ impl<'a> Builder<'a> {
         self.spec.borrow_mut().build_with_modifier_filter = build_with_modifier_filter;
     }
 
-    pub fn filter(&self, filter: Filter<'_>) -> PathMap {
+    pub fn filter(&self, filter: Filter) -> PathMap {
         self.spec.borrow().parser.filter(filter)
     }
 
-    pub fn generate_requests(&self) -> Vec<ResourceRequestMap<'a>> {
+    pub fn generate_requests(&self) -> Vec<ResourceRequestMap> {
         let spec = self.spec.borrow();
         Builder::parser_build(&spec)
     }
@@ -189,6 +190,7 @@ impl<'a> Builder<'a> {
                 client.extend_client_links(client_link_settings.clone());
             }
 
+            println!("Current Name: {:#?}", name);
             let resource_identity = ResourceIdentity::from_str(name.as_str()).unwrap();
             if ParserSettings::is_registered_ident_client(resource_identity) {
                 client.set_ident_client(true);
@@ -267,8 +269,88 @@ impl<'a> Builder<'a> {
         }
     }
 
+    pub fn build_stored_clients(&self) -> StoredClientSet {
+        let spec = self.spec.borrow();
+        let resources = Builder::parser_build(&spec);
+        let mut stored_client_set: BTreeSet<StoredClient> = BTreeSet::new();
+
+        for resource_map in resources.iter() {
+            let imports = resource_map.get_imports();
+            let mut methods = resource_map.request_set.methods();
+            let mut directory_mods = BTreeSet::new();
+
+            if let Some(directory_mod) = resource_map.modifier.directory_mod.as_ref() {
+                directory_mods.insert(directory_mod.clone());
+            }
+
+            // Temporary workaround to deal with the differences in the path
+            // for drives when the resource comes from me, users, groups,
+            // and sites.
+            for (_operation_id, request_map) in methods.iter_mut() {
+                self.fix_drive_methods(request_map);
+            }
+
+            let mut clients = self.build_client_map(resource_map);
+
+            if let Some(custom_methods) = resource_map.modifier.custom_methods.as_ref() {
+                self.add_custom_clients(
+                    resource_map.modifier.name.as_str(),
+                    custom_methods,
+                    &mut clients,
+                );
+            }
+
+            let mut snake_casing = resource_map.modifier.name.to_snake_case();
+
+            // The path /contacts is not related to me/contacts or users/user-id/contacts
+            // but is really org contacts. The directory contacts is for me and users.
+            if resource_map.modifier.name.eq("contacts") && clients.contains_key("orgContact") {
+                snake_casing = "org_contact".to_string();
+            }
+
+            let directory = format!("./src/{}", snake_casing);
+            let mod_file = format!("./src/{}/mod.rs", snake_casing);
+            let request_file = format!("./src/{}/request.rs", snake_casing);
+            let client_builder = ClientBuilder::new(imports, clients, directory_mods);
+
+            println!("Client Builder: {:#?}", client_builder);
+            println!("Building Client: {:#?}", snake_casing);
+            println!("Directory: {:#?}", directory);
+            println!("Mod file: {:#?}", mod_file);
+            println!("Request file: {:#?}", request_file);
+
+            stored_client_set.insert(StoredClient::new(
+                resource_map.modifier.resource_identity,
+                client_builder,
+                directory,
+                mod_file,
+                request_file,
+            ));
+        }
+        StoredClientSet::from(stored_client_set)
+    }
+
+    pub fn write_stored_clients(stored_client_set: StoredClientSet) {
+        for stored_client in stored_client_set.stored_client_set {
+            println!("Client Builder: {:#?}", stored_client.client_builder);
+            println!(
+                "Building Client: {:#?}",
+                stored_client.resource_identity.to_string()
+            );
+            println!("Directory: {:#?}", stored_client.directory);
+            println!("Mod file: {:#?}", stored_client.mod_file);
+            println!("Request file: {:#?}", stored_client.request_file);
+            Builder::write(
+                stored_client.client_builder,
+                stored_client.directory,
+                stored_client.mod_file,
+                stored_client.request_file,
+            );
+        }
+    }
+
     fn write(client_builder: ClientBuilder, dir: String, mod_file: String, request_file: String) {
-        iotools::create_dir(dir).unwrap();
+        create_dir(dir).unwrap();
 
         let mut mod_file_buf = client_builder.build_mod_file();
         let mut file1 = OpenOptions::new()
@@ -292,18 +374,16 @@ impl<'a> Builder<'a> {
         file.sync_data().unwrap();
     }
 
-    fn parser_build(spec: &Ref<SpecBuilder<'a>>) -> Vec<ResourceRequestMap<'a>> {
-        if spec.build_with_modifier_filter {
-            spec.parser.build()
-        } else {
+    fn parser_build(spec: &Ref<SpecBuilder>) -> Vec<ResourceRequestMap> {
+        if !spec.build_with_modifier_filter {
             let path_map = spec.parser.path_map();
             let resource_names = ResourceNames::from(path_map);
             let vec = resource_names.to_vec();
             let vec_str: Vec<&str> = vec.iter().map(|s| s.as_str()).collect();
             let modifiers = Modifier::build_modifier_vec(&vec_str);
             spec.parser.set_modifiers(modifiers);
-            spec.parser.build()
         }
+        spec.parser.build()
     }
 
     pub fn generate_resource_names(&self) -> ResourceNames {
